@@ -1,0 +1,68 @@
+# Runs frontend, backend, MySQL, and Redis together on EC2.
+services:
+  frontend:
+    container_name: exchange-frontend
+    build:
+      context: ./frontend
+      args:
+        # Browser API requests go through the Nginx /api reverse proxy.
+        VITE_API_BASE_URL: /api
+    ports:
+      # Exposes only the frontend container's port 80 to the outside.
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    container_name: exchange-backend
+    build:
+      context: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx384m
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: exchange_db
+      DB_USERNAME: root
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      EXCHANGE_API_KEY: ${EXCHANGE_API_KEY}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-change_this_jwt_secret_before_production}
+      FRONTEND_URL: http://localhost
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: exchange_db
+      TZ: Asia/Seoul
+    volumes:
+      # MySQL production data remains in a Docker volume after container removal.
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

@@ -1,0 +1,23 @@
+name: exchange-rate
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: exchange-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: exchange_db
+      TZ: Asia/Seoul
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    container_name: exchange-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  mysql_data:

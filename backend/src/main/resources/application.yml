@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: exchange-rate
+  profiles:
+    default: local
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+springdoc:
+  swagger-ui:
+    url: /swagger.yml
+    path: /swagger-ui.html
+
+exchange:
+  api:
+    auth-key: ${EXCHANGE_API_KEY:}
+    base-url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
+  cache:
+    ttl: 6h
+  scheduler:
+    enabled: true
+    cron: "0 0 11 * * *"
+  cors:
+    frontend-url: ${FRONTEND_URL:}
+
+app:
+  auth:
+    jwt-secret: ${AUTH_JWT_SECRET:local-development-secret-change-me}
+    token-ttl: 7d

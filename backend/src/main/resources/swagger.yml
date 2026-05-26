@@ -1,0 +1,945 @@
+openapi: 3.0.3
+info:
+  title: Exchange Rate API
+  version: 1.0.0
+  description: REST API for stored Korea Eximbank exchange-rate data, favorites, calculations, and portfolio simulation.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/auth/register:
+    post:
+      summary: Register user
+      description: Creates an account and returns a bearer token. Registered users can save favorite currencies.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRegisterRequest'
+      responses:
+        '201':
+          description: Registered user with access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          $ref: '#/components/responses/Error'
+  /api/auth/login:
+    post:
+      summary: Login user
+      description: Authenticates a user and returns a bearer token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginRequest'
+      responses:
+        '200':
+          description: Logged-in user with access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/auth/me:
+    get:
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserResponse'
+        '401':
+          $ref: '#/components/responses/Error'
+  /api/exchange-rates/today:
+    get:
+      summary: Get today's exchange rates
+      description: Returns today's stored rates. If today's data does not exist, returns the latest stored date. This endpoint never calls the external Korea Eximbank API directly.
+      responses:
+        '200':
+          description: Exchange-rate list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExchangeRateResponse'
+  /api/exchange-rates/search:
+    get:
+      summary: Search exchange rates
+      description: Searches stored exchange rates by curUnit, normalizedCurUnit, or curName. This endpoint never calls the external Korea Eximbank API directly.
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search result
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExchangeRateResponse'
+  /api/exchange-rates/{curUnit}:
+    get:
+      summary: Get exchange-rate detail
+      description: Returns one stored exchange-rate record by currency and optional date. This endpoint never calls the external Korea Eximbank API directly.
+      parameters:
+        - name: curUnit
+          in: path
+          required: true
+          schema:
+            type: string
+          example: USD
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Exchange-rate detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeRateResponse'
+        '404':
+          $ref: '#/components/responses/Error'
+  /api/exchange-rates/{curUnit}/history:
+    get:
+      summary: Get latest 7 stored exchange-rate records
+      description: Returns the latest 7 stored exchange-rate records for the currency. This endpoint never calls the external Korea Eximbank API directly.
+      parameters:
+        - name: curUnit
+          in: path
+          required: true
+          schema:
+            type: string
+          example: USD
+      responses:
+        '200':
+          description: Latest 7 stored records, sorted by baseDate ascending
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExchangeRateHistoryResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/exchange-rates/{curUnit}/rate:
+    get:
+      summary: Get exchange rate for a portfolio buy transaction
+      description: Returns a stored exchange rate by currency and required date for BUY preview. This endpoint never calls the external Korea Eximbank API directly.
+      parameters:
+        - name: curUnit
+          in: path
+          required: true
+          schema:
+            type: string
+          example: USD
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Exchange rate for transaction input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeRateForTransactionResponse'
+        '404':
+          $ref: '#/components/responses/Error'
+  /api/exchange-rates/{curUnit}/latest-rate:
+    get:
+      summary: Get latest exchange rate for a portfolio sell transaction
+      description: Returns the latest stored exchange rate for SELL preview. This endpoint never calls the external Korea Eximbank API directly.
+      parameters:
+        - name: curUnit
+          in: path
+          required: true
+          schema:
+            type: string
+          example: USD
+      responses:
+        '200':
+          description: Latest exchange rate for transaction input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeRateForTransactionResponse'
+        '404':
+          $ref: '#/components/responses/Error'
+  /api/exchange-rates/calculate:
+    post:
+      summary: Calculate exchange amount
+      description: Calculates using the latest stored exchange rates only. This endpoint never calls the external Korea Eximbank API directly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExchangeCalculateRequest'
+      responses:
+        '200':
+          description: Calculation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeCalculateResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/favorites:
+    get:
+      summary: Get favorite currencies
+      description: Returns favorite currencies with the latest stored exchange-rate data. This endpoint never calls the external Korea Eximbank API directly.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Favorite list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FavoriteResponse'
+  /api/favorites/{curUnit}:
+    post:
+      summary: Add favorite currency
+      parameters:
+        - name: curUnit
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Favorite currency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResponse'
+    delete:
+      summary: Delete favorite currency
+      parameters:
+        - name: curUnit
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Deleted
+  /api/portfolio:
+    get:
+      summary: Get portfolio dashboard
+      description: Returns portfolio summary, positions, and recent transactions for the selected portfolio. Login is required.
+      parameters:
+        - $ref: '#/components/parameters/PortfolioIdQuery'
+      responses:
+        '200':
+          description: Portfolio dashboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioDashboardResponse'
+  /api/portfolio/account:
+    post:
+      summary: Create portfolio account
+      description: Creates another portfolio account with a user-selected investmentCurrency and initial deposit. Login is required and the investment currency cannot be changed later.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioAccountCreateRequest'
+      responses:
+        '200':
+          description: Created portfolio account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioAccountResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/portfolio/accounts:
+    get:
+      summary: List portfolio accounts
+      description: Returns all portfolio accounts owned by the logged-in user.
+      responses:
+        '200':
+          description: Portfolio accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PortfolioAccountResponse'
+  /api/portfolio/deposits:
+    post:
+      summary: Deposit investment cash
+      description: Increases cashBalance and totalDeposited in the account investmentCurrency. This endpoint never calls the external Korea Eximbank API directly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioDepositRequest'
+      responses:
+        '200':
+          description: Updated portfolio account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioAccountResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+  /api/portfolio/buy:
+    post:
+      summary: Buy currency in the portfolio simulator
+      description: Uses the selected historical transactionDate. If that date is missing in DB, the backend attempts one external Korea Eximbank API sync for that date before calculating. The client cannot provide exchangeRate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioBuyRequest'
+      responses:
+        '200':
+          description: Created BUY transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioTransactionResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /api/portfolio/sell:
+    post:
+      summary: Sell currency in the portfolio simulator
+      description: Uses only the latest stored DB exchange rate. The client cannot provide exchangeRate or transactionDate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortfolioSellRequest'
+      responses:
+        '200':
+          description: Created SELL transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioTransactionResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /api/portfolio/summary:
+    get:
+      summary: Get portfolio summary
+      parameters:
+        - $ref: '#/components/parameters/PortfolioIdQuery'
+      responses:
+        '200':
+          description: Portfolio summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioSummaryResponse'
+  /api/portfolio/positions:
+    get:
+      summary: Get portfolio positions
+      parameters:
+        - $ref: '#/components/parameters/PortfolioIdQuery'
+      responses:
+        '200':
+          description: Portfolio positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PortfolioPositionResponse'
+  /api/portfolio/positions/{curUnit}:
+    get:
+      summary: Get one portfolio position
+      parameters:
+        - $ref: '#/components/parameters/PortfolioIdQuery'
+        - name: curUnit
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Portfolio position
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioPositionResponse'
+        '404':
+          $ref: '#/components/responses/Error'
+  /api/portfolio/transactions:
+    get:
+      summary: Search portfolio transactions
+      description: Searches portfolio transactions by curUnit, transactionType, and date range.
+      parameters:
+        - $ref: '#/components/parameters/PortfolioIdQuery'
+        - name: curUnit
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: transactionType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [BUY, SELL, DEPOSIT]
+        - name: fromDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: toDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paged portfolio transaction result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioTransactionPage'
+  /api/portfolio/transactions/{transactionId}:
+    delete:
+      summary: Delete portfolio transaction
+      parameters:
+        - $ref: '#/components/parameters/UserKeyHeader'
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Deleted
+  /api/admin/exchange-rates/sync:
+    post:
+      summary: Manually synchronize exchange rates
+      description: Calls the external Korea Eximbank API and stores exchange rates for the requested date. If force is false and data already exists, the external API call is skipped.
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: force
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Synchronization result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeSyncResponse'
+        '429':
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    UserKeyHeader:
+      name: X-USER-KEY
+      in: header
+      required: false
+      description: User key for MVP portfolio data. Defaults to demo-user when omitted.
+      schema:
+        type: string
+        default: demo-user
+    PortfolioIdQuery:
+      name: portfolioId
+      in: query
+      required: false
+      description: Selected portfolio account id. When omitted, the first portfolio is used.
+      schema:
+        type: integer
+        format: int64
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    AuthRegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - name
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          pattern: '^(?=.*[^A-Za-z0-9]).{8,100}$'
+          description: Must include at least one special character.
+        name:
+          type: string
+          description: Must be unique.
+    AuthLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    AuthUserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+        name:
+          type: string
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        user:
+          $ref: '#/components/schemas/AuthUserResponse'
+    ExchangeRateResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        curUnit:
+          type: string
+        normalizedCurUnit:
+          type: string
+        curName:
+          type: string
+        ttb:
+          type: number
+        tts:
+          type: number
+        dealBasR:
+          type: number
+        bkpr:
+          type: number
+        yyEfeeR:
+          type: number
+        tenDdEfeeR:
+          type: number
+        kftcDealBasR:
+          type: number
+        kftcBkpr:
+          type: number
+        baseDate:
+          type: string
+          format: date
+        changeAmount:
+          type: number
+        changeRate:
+          type: number
+        favorite:
+          type: boolean
+    ExchangeRateHistoryResponse:
+      type: object
+      properties:
+        baseDate:
+          type: string
+          format: date
+        dealBasR:
+          type: number
+    ExchangeRateForTransactionResponse:
+      type: object
+      properties:
+        curUnit:
+          type: string
+        normalizedCurUnit:
+          type: string
+        curName:
+          type: string
+        baseDate:
+          type: string
+          format: date
+        dealBasR:
+          type: number
+        unitFactor:
+          type: number
+    ExchangeCalculateRequest:
+      type: object
+      required:
+        - fromCurrency
+        - toCurrency
+        - amount
+      properties:
+        fromCurrency:
+          type: string
+          example: USD
+        toCurrency:
+          type: string
+          example: KRW
+        amount:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          example: 100
+    ExchangeCalculateResponse:
+      type: object
+      properties:
+        fromCurrency:
+          type: string
+        toCurrency:
+          type: string
+        amount:
+          type: number
+        convertedAmount:
+          type: number
+        appliedRate:
+          type: number
+    FavoriteResponse:
+      type: object
+      properties:
+        curUnit:
+          type: string
+        normalizedCurUnit:
+          type: string
+        curName:
+          type: string
+        ttb:
+          type: number
+        tts:
+          type: number
+        dealBasR:
+          type: number
+        changeAmount:
+          type: number
+        changeRate:
+          type: number
+        baseDate:
+          type: string
+          format: date
+    PortfolioDepositRequest:
+      type: object
+      required:
+        - portfolioId
+        - amount
+      properties:
+        portfolioId:
+          type: integer
+          format: int64
+        amount:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        memo:
+          type: string
+          nullable: true
+    PortfolioAccountCreateRequest:
+      type: object
+      required:
+        - investmentCurrency
+        - initialDepositAmount
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: Travel fund
+        investmentCurrency:
+          type: string
+          example: USD
+        initialDepositAmount:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        memo:
+          type: string
+          nullable: true
+    PortfolioBuyRequest:
+      type: object
+      required:
+        - portfolioId
+        - curUnit
+        - transactionDate
+        - foreignAmount
+      properties:
+        portfolioId:
+          type: integer
+          format: int64
+        curUnit:
+          type: string
+        transactionDate:
+          type: string
+          format: date
+        foreignAmount:
+          type: number
+        memo:
+          type: string
+          nullable: true
+    PortfolioSellRequest:
+      type: object
+      required:
+        - portfolioId
+        - curUnit
+        - foreignAmount
+      properties:
+        portfolioId:
+          type: integer
+          format: int64
+        curUnit:
+          type: string
+        foreignAmount:
+          type: number
+        memo:
+          type: string
+          nullable: true
+    PortfolioAccountResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        investmentCurrency:
+          type: string
+        cashBalance:
+          type: number
+        totalDeposited:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PortfolioTransactionResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        curUnit:
+          type: string
+          nullable: true
+        normalizedCurUnit:
+          type: string
+          nullable: true
+        curName:
+          type: string
+        transactionType:
+          type: string
+          enum:
+            - BUY
+            - SELL
+            - DEPOSIT
+        transactionDate:
+          type: string
+          format: date
+        foreignAmount:
+          type: number
+          nullable: true
+        exchangeRate:
+          type: number
+          nullable: true
+        unitFactor:
+          type: number
+          nullable: true
+        amount:
+          type: number
+        memo:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PortfolioPositionResponse:
+      type: object
+      properties:
+        investmentCurrency:
+          type: string
+        curUnit:
+          type: string
+        normalizedCurUnit:
+          type: string
+        curName:
+          type: string
+        holdingForeignAmount:
+          type: number
+        averageBuyRate:
+          type: number
+        investedCost:
+          type: number
+        currentRate:
+          type: number
+        currentValue:
+          type: number
+        profitLoss:
+          type: number
+        profitLossRate:
+          type: number
+        changeStatus:
+          type: string
+          enum:
+            - UP
+            - DOWN
+            - NO_CHANGE
+        baseDate:
+          type: string
+          format: date
+    PortfolioSummaryResponse:
+      type: object
+      properties:
+        investmentCurrency:
+          type: string
+          nullable: true
+        cashBalance:
+          type: number
+        totalDeposited:
+          type: number
+        investedCost:
+          type: number
+        currencyValue:
+          type: number
+        totalAssetValue:
+          type: number
+        profitLoss:
+          type: number
+        profitLossRate:
+          type: number
+        changeStatus:
+          type: string
+          enum:
+            - UP
+            - DOWN
+            - NO_CHANGE
+        positionCount:
+          type: integer
+        baseDate:
+          type: string
+          format: date
+          nullable: true
+    PortfolioDashboardResponse:
+      type: object
+      properties:
+        account:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/PortfolioAccountResponse'
+        summary:
+          $ref: '#/components/schemas/PortfolioSummaryResponse'
+        positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortfolioPositionResponse'
+        recentTransactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortfolioTransactionResponse'
+    PortfolioTransactionPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortfolioTransactionResponse'
+        totalElements:
+          type: integer
+        totalPages:
+          type: integer
+        number:
+          type: integer
+        size:
+          type: integer
+    ExchangeSyncResponse:
+      type: object
+      properties:
+        baseDate:
+          type: string
+          format: date
+        skipped:
+          type: boolean
+        savedCount:
+          type: integer
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
