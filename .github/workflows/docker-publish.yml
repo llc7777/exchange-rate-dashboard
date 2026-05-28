@@ -39,7 +39,7 @@ jobs:
     needs: build
 
     steps:
-      # AWS EC2 deploy
+      # AWS EC2 deploy # test comment
       - name: SSH to EC2 and deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
