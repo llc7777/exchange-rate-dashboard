@@ -1,0 +1,55 @@
+name: Exchange Rate CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Code checkout
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # DockerHub login
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      # Backend DockerHub push
+      - name: Build and Push Backend Docker image
+        run: |
+          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/exchange-rate-backend:latest ./backend
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/exchange-rate-backend:latest
+
+      # Frontend DockerHub push
+      - name: Build and Push Frontend Docker image
+        run: |
+          docker build --build-arg VITE_API_BASE_URL=/api -t ${{ secrets.DOCKER_HUB_USERNAME }}/exchange-rate-frontend:latest ./frontend
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/exchange-rate-frontend:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      # AWS EC2 deploy
+      - name: SSH to EC2 and deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || '22' }}
+          script: |
+            cd ${{ secrets.EC2_APP_DIR }}
+            git pull --ff-only origin master
+            sudo docker compose -f docker-compose.prod.yml pull
+            sudo docker compose -f docker-compose.prod.yml down
+            sudo docker compose -f docker-compose.prod.yml up -d

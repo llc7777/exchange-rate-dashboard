@@ -1,12 +1,9 @@
-# Runs frontend, backend, MySQL, and Redis together on EC2.
+# Runs prebuilt frontend/backend images with MySQL and Redis on EC2.
 services:
   frontend:
     container_name: exchange-frontend
-    build:
-      context: ./frontend
-      args:
-        # Browser API requests go through the Nginx /api reverse proxy.
-        VITE_API_BASE_URL: /api
+    image: ${FRONTEND_IMAGE}
+    pull_policy: always
     ports:
       # Exposes only the frontend container's port 80 to the outside.
       - "80:80"
@@ -16,8 +13,8 @@ services:
 
   backend:
     container_name: exchange-backend
-    build:
-      context: ./backend
+    image: ${BACKEND_IMAGE}
+    pull_policy: always
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_TOOL_OPTIONS: -Xms128m -Xmx384m

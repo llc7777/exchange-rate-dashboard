@@ -42,7 +42,7 @@ npm run dev
 - Favorite currencies
 - Portfolio simulation with a user-selected investment currency and Portfolio-page-only Buy/Sell records
 - Portfolio summary, currency positions, profit/loss, and transaction history in the selected investment currency
-- Docker Compose deployment for frontend, backend, MySQL, and Redis
+- Docker Compose deployment that pulls prebuilt frontend/backend images and runs MySQL and Redis
 
 Portfolio transactions are record/simulation data only. They do not execute real trades.
 Buy/Sell is available only on the Portfolio page. Create one portfolio account first, choose its investment currency from the dropdown, and deposit cash in that currency. BUY uses the selected historical date; if that date is missing in DB, the backend attempts one Korea Eximbank sync for that date. SELL uses only the latest stored business-day rate and never accepts a user-entered rate.
@@ -76,11 +76,65 @@ DELETE /api/portfolio/transactions/{transactionId}
 
 The history API always uses the latest 7 stored records. It does not use a `days` query parameter.
 
+## GitHub Actions Build And EC2 Deploy
+
+EC2 does not build the frontend or backend anymore. GitHub Actions builds Docker images with `docker build`, pushes them to Docker Hub with `docker push`, then connects to EC2 with `appleboy/ssh-action` and restarts Docker Compose when code is pushed to `main` or `master`.
+
+Pushed images:
+
+```text
+<DOCKER_HUB_USERNAME>/exchange-rate-frontend:latest
+<DOCKER_HUB_USERNAME>/exchange-rate-backend:latest
+```
+
+The workflow file is:
+
+```text
+.github/workflows/docker-publish.yml
+```
+
+The frontend image is built with:
+
+```text
+VITE_API_BASE_URL=/api
+```
+
+That means browser requests go to `http://EC2_PUBLIC_IP/api/...`, and the frontend Nginx container proxies those requests to the backend container.
+
+### GitHub Secrets For Auto Deploy
+
+Set these in GitHub repository settings: `Settings` -> `Secrets and variables` -> `Actions` -> `Repository secrets`.
+
+```text
+DOCKER_HUB_USERNAME      Docker Hub username
+DOCKER_HUB_ACCESS_TOKEN  Docker Hub access token
+EC2_HOST                 EC2 public IP or DNS name
+EC2_USER                 EC2 SSH user, usually ubuntu on Ubuntu AMIs
+EC2_SSH_KEY              Private key text used to SSH into EC2
+EC2_PORT                 Optional. Defaults to 22
+EC2_APP_DIR              EC2 directory that contains docker-compose.prod.yml and .env
+```
+
+`EC2_SSH_KEY` must match a public key in the EC2 user's `~/.ssh/authorized_keys`.
+
+The deploy job runs this flow on EC2:
+
+```bash
+cd "$EC2_APP_DIR"
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml up -d
+```
+
+The EC2 deploy step pulls the latest Docker Hub images and restarts the Compose stack.
+
 ## AWS EC2 Docker Compose Deployment
 
-This is not an AWS-managed automatic deployment. EC2 is a virtual Linux server, and you manually run Docker Compose after connecting to the server.
+This is a GitHub Actions SSH deployment to a normal EC2 Linux server. EC2 needs a one-time setup before the workflow can deploy automatically.
 
 Do not install Java, MySQL, Redis, or Nginx directly on EC2. Install only Docker, Docker Compose, and Git. The `frontend`, `backend`, `mysql`, and `redis` services run as Docker containers.
+
+The frontend and backend containers are pulled from Docker Hub. EC2 only runs containers; it does not run Gradle, npm, or Docker image builds.
 
 Only port `80` should be public for the application. MySQL and Redis are reachable only inside the Docker network. Never commit `.env` to GitHub.
 
@@ -109,13 +163,17 @@ docker compose version
 6379 Redis    do not open
 ```
 
+For GitHub Actions auto deploy, SSH port `22` must also be reachable from the GitHub-hosted runner. The simplest setup is allowing `22` from `0.0.0.0/0` with key-only SSH, but restrict it further if you use a fixed runner or another controlled deployment path.
+
 ### Clone And Configure
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone git@github.com:llc7777/exchange-rate-dashoboard.git exchange-rate
 cd exchange-rate
 nano .env
 ```
+
+The GitHub Actions deploy step runs `cd $EC2_APP_DIR`, so set `EC2_APP_DIR` to this directory, for example `/home/ubuntu/exchange-rate`.
 
 Example `.env`:
 
@@ -123,15 +181,16 @@ Example `.env`:
 EXCHANGE_API_KEY=your_real_api_key
 DB_PASSWORD=your_db_password
 AUTH_JWT_SECRET=replace_with_a_long_random_jwt_secret
+FRONTEND_IMAGE=your-dockerhub-username/exchange-rate-frontend:latest
+BACKEND_IMAGE=your-dockerhub-username/exchange-rate-backend:latest
 ```
 
 Use a long random value for `AUTH_JWT_SECRET` in production.
+Replace the image owner with your Docker Hub username.
 
 ### Deploy
 
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
+Deployment is handled by GitHub Actions only. Push to `main` or `master`, or run `Build, Push, and Deploy` manually from the GitHub Actions tab with `workflow_dispatch`.
 
 Browser:
 
@@ -161,10 +220,7 @@ docker compose -f docker-compose.prod.yml logs -f
 
 Update deployment:
 
-```bash
-git pull
-docker compose -f docker-compose.prod.yml up -d --build
-```
+Push to `main` or `master`, or rerun the `Build, Push, and Deploy` workflow from the GitHub Actions tab.
 
 Stop:
 
@@ -194,7 +250,7 @@ On `t2.micro` or `t3.micro`, running Spring Boot, MySQL, Redis, and Nginx on one
 JAVA_TOOL_OPTIONS=-Xms128m -Xmx384m
 ```
 
-If builds fail because of memory pressure, build images with GitHub Actions or locally, push them to a registry, and pull them from EC2.
+Frontend and backend image builds run in GitHub Actions, so EC2 memory is used only for running containers. If the backend still runs out of memory, increase the EC2 instance size or reduce container memory usage further.
 
 ### Validate Compose
 
