@@ -8,6 +8,10 @@ exchange-rate/
 └─ frontend/   # React + TypeScript web app
 ```
 
+## Live Demo
+
+- Service URL: [Exchange Rate Portfolio Service](http://3.39.231.149/)
+
 ## Features
 
 - Stored Korea Eximbank exchange-rate list, search, detail, history chart, and calculator
