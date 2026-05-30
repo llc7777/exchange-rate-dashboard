@@ -8,34 +8,6 @@ exchange-rate/
 └─ frontend/   # React + TypeScript web app
 ```
 
-## Local Development
-
-Backend details are in [backend/README.md](backend/README.md), and frontend details are in [frontend/README.md](frontend/README.md).
-
-Run local MySQL and Redis:
-
-```powershell
-cd backend
-docker compose -f docker-compose.local.yml up -d
-```
-
-Run the backend:
-
-```powershell
-cd backend
-$env:EXCHANGE_API_KEY="your_exchange_api_key_here"
-$env:AUTH_JWT_SECRET="replace_with_a_long_random_secret"
-.\gradlew.bat bootRun --args='--spring.profiles.active=local'
-```
-
-Run the frontend:
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
 ## Features
 
 - Stored Korea Eximbank exchange-rate list, search, detail, history chart, and calculator
@@ -138,21 +110,6 @@ The frontend and backend containers are pulled from Docker Hub. EC2 only runs co
 
 Only port `80` should be public for the application. MySQL and Redis are reachable only inside the Docker network. Never commit `.env` to GitHub.
 
-### Prepare EC2
-
-```bash
-sudo apt update
-sudo apt install -y docker.io docker-compose-plugin git
-sudo usermod -aG docker ubuntu
-```
-
-Log out and SSH back in, then verify:
-
-```bash
-docker --version
-docker compose version
-```
-
 ### Security Group
 
 ```text
@@ -164,29 +121,6 @@ docker compose version
 ```
 
 For GitHub Actions auto deploy, SSH port `22` must also be reachable from the GitHub-hosted runner. The simplest setup is allowing `22` from `0.0.0.0/0` with key-only SSH, but restrict it further if you use a fixed runner or another controlled deployment path.
-
-### Clone And Configure
-
-```bash
-git clone git@github.com:llc7777/exchange-rate-dashoboard.git exchange-rate
-cd exchange-rate
-nano .env
-```
-
-The GitHub Actions deploy step runs `cd $EC2_APP_DIR`, so set `EC2_APP_DIR` to this directory, for example `/home/ubuntu/exchange-rate`.
-
-Example `.env`:
-
-```env
-EXCHANGE_API_KEY=your_real_api_key
-DB_PASSWORD=your_db_password
-AUTH_JWT_SECRET=replace_with_a_long_random_jwt_secret
-FRONTEND_IMAGE=your-dockerhub-username/exchange-rate-frontend:latest
-BACKEND_IMAGE=your-dockerhub-username/exchange-rate-backend:latest
-```
-
-Use a long random value for `AUTH_JWT_SECRET` in production.
-Replace the image owner with your Docker Hub username.
 
 ### Deploy
 
